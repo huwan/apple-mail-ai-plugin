@@ -20,7 +20,7 @@
 
 ---
 
-The **Apple Mail AI Plugin** lives in your menu bar and connects directly to Apple Mail. When you're composing a reply, press **Option + H** to open the composer panel. Type a few thoughts about what you want to say, pick an AI model, and the app writes your reply — matching the language and tone of the conversation.
+The **Apple Mail AI Plugin** lives in your menu bar and connects directly to Apple Mail. Select an email (or open a compose window) and press **Option + H** to open the composer panel. Type a few thoughts about what you want to say, pick an AI model, and the app writes your reply — matching the language and tone of the conversation.
 
 **Bring your own API key.** No accounts, no subscriptions, no middleman. Your key is stored in macOS Keychain and calls go directly to the provider.
 
@@ -28,7 +28,10 @@ The **Apple Mail AI Plugin** lives in your menu bar and connects directly to App
 
 - **Menu bar app** — stays out of your way until you need it
 - **Works with Apple Mail** — reads your email thread, recipients, subject, and current draft
-- **Multiple AI providers** — Anthropic (Claude), OpenAI (GPT), Google Gemini, and OpenRouter
+- **No Reply needed** — just select an email in the list and hit the shortcut; the thread context comes along automatically
+- **Multiple AI providers** — Anthropic (Claude), OpenAI (GPT), Google Gemini, OpenRouter, and Vercel AI Gateway
+- **Custom base URLs** — point any provider at a proxy or gateway from Settings
+- **Thread summaries** — one click TL;DR of the selected email thread
 - **Streaming responses** — see the reply as it's being written
 - **Language matching** — automatically replies in the same language as the conversation
 - **Keyboard shortcut** — **⌥H** (Option + H) to open from anywhere
@@ -84,37 +87,50 @@ The Apple Mail AI Plugin calls AI providers directly — you'll need an API key 
 
 > **Tip:** OpenRouter gives you access to models from many providers through a single key. Great if you want to try different models without managing multiple accounts.
 
+### Vercel AI Gateway
+
+1. Go to [vercel.com](https://vercel.com/) and open the **AI Gateway** tab of your dashboard
+2. Create an API key and copy it (starts with `vck_`)
+
+> Like OpenRouter, one key covers models from many providers.
+
 ### Add Your Key to the App
 
 1. Click the **Apple Mail AI Plugin** icon in your menu bar
-2. Open **Settings**
-3. Paste your API key for the provider you chose
-4. The app will automatically fetch available models from that provider
+2. Open **Settings** → **API Keys**
+3. Pick your provider from the dropdown and paste its API key
+4. Optionally set a custom base URL (leave empty for the provider default)
+5. Hit **Save** — the app fetches the available models from that provider
 
 ## Usage
 
-1. Open **Apple Mail** and start composing a reply
+1. In **Apple Mail**, select the email you want to answer (or open a compose window)
 2. Press **⌥H** (Option + H) to open the composer panel
 3. Type a few words describing what you want to say (e.g. "sounds good, let's meet thursday")
-4. Pick a model from the dropdown
-5. Hit **Generate** — the reply streams into your compose window
+4. Pick a model from the dropdown and hit **Generate**
+5. Click **Copy message**, then paste the reply into your Mail draft
 
-The app reads the full email thread for context, so the generated reply stays relevant to the conversation.
+The app reads the full email thread for context, so the generated reply stays relevant to the conversation. There's also a **Summarize** button for a quick TL;DR of the selected thread.
+
+> **Why copy-paste?** Recent macOS versions broke the AppleScript APIs for writing into an existing Mail compose window, so the app puts the finished reply on your clipboard instead of inserting it directly.
 
 ## Building from Source
 
 ```bash
-git clone https://github.com/jpwahle/aimail.git
-cd aimail
+git clone https://github.com/huwan/apple-mail-ai-plugin.git
+cd apple-mail-ai-plugin
 make build
 make run
 ```
+
+No Xcode? `make build-spm` builds and bundles the app with Command Line Tools only, signing with your local Apple Development certificate when one exists (a stable signature keeps Keychain from re-prompting after every rebuild).
 
 ### Available Make Targets
 
 | Command | Description |
 |---------|-------------|
-| `make build` | Debug build |
+| `make build` | Debug build (requires Xcode) |
+| `make build-spm` | Release build with Command Line Tools only |
 | `make run` | Build and launch the app |
 | `make release` | Optimized release build |
 | `make sign` | Code sign (ad-hoc or with `SIGNING_IDENTITY`) |
