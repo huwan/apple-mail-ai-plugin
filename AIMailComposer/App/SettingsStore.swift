@@ -40,18 +40,21 @@ final class SettingsStore: ObservableObject {
     @Published var openaiModels: [AIModel] = []
     @Published var geminiModels: [AIModel] = []
     @Published var openrouterModels: [AIModel] = []
+    @Published var vercelModels: [AIModel] = []
     @Published var isFetchingAnthropic = false
     @Published var isFetchingOpenAI = false
     @Published var isFetchingGemini = false
     @Published var isFetchingOpenRouter = false
+    @Published var isFetchingVercel = false
     @Published var anthropicFetchError: String?
     @Published var openaiFetchError: String?
     @Published var geminiFetchError: String?
     @Published var openrouterFetchError: String?
+    @Published var vercelFetchError: String?
     @Published var trendingModels: [TrendingModel] = []
 
     var allModels: [AIModel] {
-        anthropicModels + openaiModels + geminiModels + openrouterModels
+        anthropicModels + openaiModels + geminiModels + openrouterModels + vercelModels
     }
 
     /// Models grouped by provider. Within each group, sorted by release date
@@ -65,6 +68,7 @@ final class SettingsStore: ObservableObject {
             case .openai: models = openaiModels
             case .gemini: models = geminiModels
             case .openrouter: models = openrouterModels
+            case .vercel: models = vercelModels
             }
             guard !models.isEmpty else { return nil }
             let sorted = models.sorted { lhs, rhs in
@@ -95,15 +99,17 @@ final class SettingsStore: ObservableObject {
                     case .openai:     providerModels = openaiModels
                     case .gemini:     providerModels = geminiModels
                     case .openrouter: providerModels = openrouterModels
+                    case .vercel: providerModels = vercelModels
                     }
                     match = providerModels.first {
                         ModelFetcher.modelIDMatchesSlug($0.id, slug: entry.slug)
                     }
                 }
 
-                // Fall back to OpenRouter models by full ID
+                // Fall back to OpenRouter/Vercel models by full ID (both use
+                // the same `provider/model` slug format).
                 if match == nil {
-                    match = openrouterModels.first {
+                    match = (openrouterModels + vercelModels).first {
                         $0.id.lowercased() == entry.openRouterId.lowercased()
                     }
                 }
@@ -157,6 +163,22 @@ final class SettingsStore: ObservableObject {
 
     func deleteAPIKey(for provider: AIProvider) {
         keychainService.deleteKey(for: provider)
+    }
+
+    // MARK: - Base URL overrides
+
+    /// The stored override only — empty string when the default is in use.
+    func baseURLOverride(for provider: AIProvider) -> String {
+        UserDefaults.standard.string(forKey: provider.baseURLDefaultsKey) ?? ""
+    }
+
+    func setBaseURLOverride(_ url: String, for provider: AIProvider) {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            UserDefaults.standard.removeObject(forKey: provider.baseURLDefaultsKey)
+        } else {
+            UserDefaults.standard.set(trimmed, forKey: provider.baseURLDefaultsKey)
+        }
     }
 
     func makeAIClient() throws -> AIClient {
@@ -213,6 +235,17 @@ final class SettingsStore: ObservableObject {
                 openrouterFetchError = error.localizedDescription
             }
             isFetchingOpenRouter = false
+
+        case .vercel:
+            isFetchingVercel = true
+            vercelFetchError = nil
+            do {
+                vercelModels = try await ModelFetcher.fetchVercelModels(apiKey: apiKey)
+                ensureDefaultSelection()
+            } catch {
+                vercelFetchError = error.localizedDescription
+            }
+            isFetchingVercel = false
         }
     }
 

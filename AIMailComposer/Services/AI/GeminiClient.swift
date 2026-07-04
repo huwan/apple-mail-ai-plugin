@@ -16,7 +16,9 @@ final class GeminiClient: AIClient {
                 do {
                     // `alt=sse` asks the API to emit SSE lines rather than a
                     // single JSON array of candidates.
-                    let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(model):streamGenerateContent?alt=sse&key=\(apiKey)")!
+                    guard let url = URL(string: "\(AIProvider.gemini.effectiveBaseURL)/models/\(model):streamGenerateContent?alt=sse&key=\(apiKey)") else {
+                        throw AIClientError.requestFailed("Invalid Gemini base URL. Check Settings → API Keys.")
+                    }
                     var request = URLRequest(url: url)
                     request.httpMethod = "POST"
                     request.setValue("application/json", forHTTPHeaderField: "content-type")

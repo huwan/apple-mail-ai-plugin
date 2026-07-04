@@ -1,7 +1,10 @@
 import Foundation
 
-final class OpenAIClient: AIClient {
-    let provider = AIProvider.openai
+/// Vercel AI Gateway exposes the OpenAI chat-completions contract with
+/// OpenRouter-style `provider/model` slugs, so this client is a thin variant
+/// of `OpenAIClient` with a different base URL.
+final class VercelGatewayClient: AIClient {
+    let provider = AIProvider.vercel
     private let apiKey: String
     private let model: String
 
@@ -14,8 +17,8 @@ final class OpenAIClient: AIClient {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    guard let url = URL(string: "\(AIProvider.openai.effectiveBaseURL)/chat/completions") else {
-                        throw AIClientError.requestFailed("Invalid OpenAI base URL. Check Settings → API Keys.")
+                    guard let url = URL(string: "\(AIProvider.vercel.effectiveBaseURL)/chat/completions") else {
+                        throw AIClientError.requestFailed("Invalid Vercel AI Gateway base URL. Check Settings → API Keys.")
                     }
                     var request = URLRequest(url: url)
                     request.httpMethod = "POST"

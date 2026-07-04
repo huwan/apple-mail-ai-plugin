@@ -14,7 +14,9 @@ final class AnthropicClient: AIClient {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let url = URL(string: "https://api.anthropic.com/v1/messages")!
+                    guard let url = URL(string: "\(AIProvider.anthropic.effectiveBaseURL)/messages") else {
+                        throw AIClientError.requestFailed("Invalid Anthropic base URL. Check Settings → API Keys.")
+                    }
                     var request = URLRequest(url: url)
                     request.httpMethod = "POST"
                     request.setValue(apiKey, forHTTPHeaderField: "x-api-key")

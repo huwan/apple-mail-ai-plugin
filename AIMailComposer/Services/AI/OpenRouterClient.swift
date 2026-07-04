@@ -17,7 +17,9 @@ final class OpenRouterClient: AIClient {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let url = URL(string: "https://openrouter.ai/api/v1/chat/completions")!
+                    guard let url = URL(string: "\(AIProvider.openrouter.effectiveBaseURL)/chat/completions") else {
+                        throw AIClientError.requestFailed("Invalid OpenRouter base URL. Check Settings → API Keys.")
+                    }
                     var request = URLRequest(url: url)
                     request.httpMethod = "POST"
                     request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")

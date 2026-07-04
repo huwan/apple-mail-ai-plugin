@@ -9,7 +9,9 @@ struct TrendingModel: Sendable {
 
 enum ModelFetcher {
     static func fetchAnthropicModels(apiKey: String) async throws -> [AIModel] {
-        let url = URL(string: "https://api.anthropic.com/v1/models?limit=100")!
+        guard let url = URL(string: "\(AIProvider.anthropic.effectiveBaseURL)/models?limit=100") else {
+            throw AIClientError.requestFailed("Invalid Anthropic base URL")
+        }
         var request = URLRequest(url: url)
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
@@ -38,7 +40,9 @@ enum ModelFetcher {
     }
 
     static func fetchOpenAIModels(apiKey: String) async throws -> [AIModel] {
-        let url = URL(string: "https://api.openai.com/v1/models")!
+        guard let url = URL(string: "\(AIProvider.openai.effectiveBaseURL)/models") else {
+            throw AIClientError.requestFailed("Invalid OpenAI base URL")
+        }
         var request = URLRequest(url: url)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
@@ -69,7 +73,9 @@ enum ModelFetcher {
     }
 
     static func fetchGeminiModels(apiKey: String) async throws -> [AIModel] {
-        let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?key=\(apiKey)")!
+        guard let url = URL(string: "\(AIProvider.gemini.effectiveBaseURL)/models?key=\(apiKey)") else {
+            throw AIClientError.requestFailed("Invalid Gemini base URL")
+        }
         let request = URLRequest(url: url)
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -100,7 +106,9 @@ enum ModelFetcher {
     }
 
     static func fetchOpenRouterModels(apiKey: String) async throws -> [AIModel] {
-        let url = URL(string: "https://openrouter.ai/api/v1/models")!
+        guard let url = URL(string: "\(AIProvider.openrouter.effectiveBaseURL)/models") else {
+            throw AIClientError.requestFailed("Invalid OpenRouter base URL")
+        }
         var request = URLRequest(url: url)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
@@ -128,6 +136,36 @@ enum ModelFetcher {
                 return nil
             }
             return AIModel(id: id, displayName: displayName, provider: .openrouter, createdAt: created)
+        }
+    }
+
+    static func fetchVercelModels(apiKey: String) async throws -> [AIModel] {
+        guard let url = URL(string: "\(AIProvider.vercel.effectiveBaseURL)/models") else {
+            throw AIClientError.requestFailed("Invalid Vercel AI Gateway base URL")
+        }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw AIClientError.requestFailed("Failed to fetch Vercel AI Gateway models: \(body)")
+        }
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let modelsArray = json["data"] as? [[String: Any]]
+        else {
+            throw AIClientError.invalidResponse("Could not parse Vercel AI Gateway models response")
+        }
+
+        return modelsArray.compactMap { obj -> AIModel? in
+            guard let id = obj["id"] as? String else { return nil }
+            // The gateway lists embedding/image models too; keep chat models.
+            if let type = obj["type"] as? String, type != "language" { return nil }
+            let displayName = (obj["name"] as? String) ?? id
+            let created = obj["created"] as? TimeInterval
+            return AIModel(id: id, displayName: displayName, provider: .vercel, createdAt: created)
         }
     }
 

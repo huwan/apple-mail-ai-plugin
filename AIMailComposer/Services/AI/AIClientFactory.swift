@@ -23,6 +23,11 @@ enum AIClientFactory {
                 throw AIClientError.missingAPIKey(.openrouter)
             }
             return OpenRouterClient(apiKey: key, model: model.id)
+        case .vercel:
+            guard let key = keychainService.getKey(for: .vercel), !key.isEmpty else {
+                throw AIClientError.missingAPIKey(.vercel)
+            }
+            return VercelGatewayClient(apiKey: key, model: model.id)
         }
     }
 }
