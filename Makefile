@@ -1,7 +1,7 @@
 APP_NAME = Apple Mail AI Plugin
 BUNDLE_NAME = AIMailComposer
 BUNDLE_ID = com.aiMailComposer
-VERSION = 0.1.0
+VERSION = 0.7.0
 BUILD_DIR = build
 APP_BUNDLE = $(BUILD_DIR)/$(APP_NAME).app
 EXECUTABLE = $(APP_BUNDLE)/Contents/MacOS/$(BUNDLE_NAME)
@@ -11,7 +11,48 @@ SIGNING_IDENTITY ?=
 APPLE_ID ?=
 TEAM_ID ?=
 
-.PHONY: build run clean release dmg sign notarize release-dmg install uninstall
+.PHONY: build build-spm run clean release dmg sign notarize release-dmg install uninstall
+
+# SwiftPM SDK for building without Xcode (Command Line Tools only).
+# The macOS 27 beta SDK needs the SwiftUIMacros plugin that CLT doesn't ship,
+# so pin to the macOS 26 SDK.
+SPM_SDKROOT ?= /Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk
+
+# Dev signing identity for build-spm. A stable identity keeps the code
+# signature identical across rebuilds, so Keychain "Always Allow" grants for
+# the stored API keys persist. Auto-detects a local Apple Development cert;
+# falls back to ad-hoc (which re-prompts Keychain after every rebuild).
+DEV_SIGNING_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development/{print $$2; exit}')
+
+# Release build without Xcode (Command Line Tools only): swift build + manual bundling + ad-hoc sign
+build-spm:
+	SDKROOT=$(SPM_SDKROOT) swift build -c release
+	@rm -rf "$(APP_BUNDLE)"
+	@mkdir -p "$(APP_BUNDLE)/Contents/MacOS"
+	@mkdir -p "$(APP_BUNDLE)/Contents/Resources"
+	@cp "$$(SDKROOT=$(SPM_SDKROOT) swift build -c release --show-bin-path)/$(BUNDLE_NAME)" "$(EXECUTABLE)"
+	@cp AIMailComposer/Resources/AppIcon.icns "$(APP_BUNDLE)/Contents/Resources/"
+	@cp AIMailComposer/App/Info.plist "$(APP_BUNDLE)/Contents/Info.plist"
+	@/usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string $(BUNDLE_ID)" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true
+	@/usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string $(BUNDLE_NAME)" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true
+	@/usr/libexec/PlistBuddy -c "Add :CFBundleName string $(APP_NAME)" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true
+	@/usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string $(APP_NAME)" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true
+	@/usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $(VERSION)" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true
+	@/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 1" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true
+	@/usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string APPL" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true
+	@/usr/libexec/PlistBuddy -c "Add :NSPrincipalClass string NSApplication" "$(APP_BUNDLE)/Contents/Info.plist" 2>/dev/null || true
+	@if [ -n "$(DEV_SIGNING_IDENTITY)" ]; then \
+		echo "Signing with: $(DEV_SIGNING_IDENTITY)"; \
+		codesign --force --deep --sign "$(DEV_SIGNING_IDENTITY)" \
+			--entitlements AIMailComposer/Entitlements/AIMailComposer.entitlements \
+			"$(APP_BUNDLE)"; \
+	else \
+		echo "⚠️  No dev identity found. Ad-hoc signing (Keychain re-prompts after each rebuild)."; \
+		codesign --force --deep --sign - \
+			--entitlements AIMailComposer/Entitlements/AIMailComposer.entitlements \
+			"$(APP_BUNDLE)"; \
+	fi
+	@echo "\n✅ Built without Xcode: $(APP_BUNDLE)"
 
 # Development build
 build:

@@ -10,8 +10,9 @@ let package = Package(
         .executableTarget(
             name: "AIMailComposer",
             path: "AIMailComposer",
+            exclude: ["Resources/Assets.xcassets"],
             resources: [
-                .process("Resources"),
+                .copy("Resources/AppIcon.icns"),
             ]
         ),
     ]
