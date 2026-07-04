@@ -20,7 +20,9 @@ final class UpdateChecker: ObservableObject {
     @Published var latestVersion: String?
     @Published var releaseNotes: String?
 
-    private let repo = "jpwahle/ai-apple-mail"
+    /// Releases are checked on this fork — pointing at upstream would
+    /// auto-replace this customized build with the stock app.
+    private let repo = "huwan/apple-mail-ai-plugin"
     private var downloadedDMG: URL?
 
     var currentVersion: String {
@@ -62,7 +64,14 @@ final class UpdateChecker: ObservableObject {
                 let (data, response) = try await URLSession.shared.data(for: request)
 
                 guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                    state = manual ? .failed("Could not reach GitHub.") : .idle
+                    if manual {
+                        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                        state = code == 404
+                            ? .failed("No releases published yet.")
+                            : .failed("Could not reach GitHub.")
+                    } else {
+                        state = .idle
+                    }
                     return
                 }
 
