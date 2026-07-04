@@ -13,7 +13,9 @@ struct GeneralSettingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        // Scrolls if the content ever outgrows the fixed settings window,
+        // instead of squeezing the tab picker above.
+        ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 howToUse
                 Divider()
@@ -24,10 +26,8 @@ struct GeneralSettingsView: View {
                 updateSection
             }
             .padding(20)
-
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Behavior
