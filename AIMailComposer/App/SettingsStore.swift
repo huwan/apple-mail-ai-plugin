@@ -8,6 +8,9 @@ final class SettingsStore: ObservableObject {
 
     @AppStorage("selectedModelID") var selectedModelID: String = ""
     @AppStorage("customWritingInstructions") var customWritingInstructions: String = ""
+    /// Close the composer panel (and bring Mail forward) after the primary
+    /// copy action. Off = keep the panel open, like the small Copy chip.
+    @AppStorage("autoCloseAfterCopy") var autoCloseAfterCopy: Bool = true
     @AppStorage("hotkeyKeyCode") var hotkeyKeyCode: Int = 0x04    // kVK_ANSI_H
     @AppStorage("hotkeyModifiers") var hotkeyModifiers: Int = 0x0800 // optionKey
 

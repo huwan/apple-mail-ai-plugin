@@ -42,6 +42,8 @@ final class ComposerViewModel: ObservableObject {
         self.onDismiss = onDismiss
     }
 
+    var autoCloseAfterCopy: Bool { settingsStore.autoCloseAfterCopy }
+
     var canSend: Bool {
         guard context != nil else { return false }
         guard settingsStore.selectedModel != nil else { return false }

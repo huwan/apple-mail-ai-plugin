@@ -113,7 +113,7 @@ Using DeepSeek, Groq, Ollama, vLLM, LiteLLM, or another gateway that speaks the 
 2. Press **⌥H** (Option + H) to open the composer panel
 3. Type a few words describing what you want to say (e.g. "sounds good, let's meet thursday")
 4. Pick a model from the dropdown and hit **Generate**
-5. Click **Copy & open Mail**, then paste the reply into your Mail draft
+5. Click **Copy message**, then paste the reply into your Mail draft (the panel closes and Mail comes forward — toggle this off in Settings → General)
 
 The app reads the full email thread for context, so the generated reply stays relevant to the conversation. There's also a **Summarize** button for a quick TL;DR of the selected thread.
 

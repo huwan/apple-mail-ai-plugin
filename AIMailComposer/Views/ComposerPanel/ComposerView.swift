@@ -76,6 +76,7 @@ struct ComposerView: View {
                 mode: viewModel.mode,
                 userThoughts: viewModel.userThoughts,
                 isStreaming: viewModel.isStreaming,
+                autoClose: viewModel.autoCloseAfterCopy,
                 onCopy: { viewModel.copyToClipboard() },
                 onCopyAndClose: { viewModel.copyAndClose() },
                 onRegenerate: { Task { await viewModel.regenerate() } },
@@ -468,6 +469,9 @@ private struct ReplyResultView: View {
     let mode: ComposerViewModel.Mode
     let userThoughts: String
     let isStreaming: Bool
+    /// When on, the primary copy dismisses the panel and brings Mail
+    /// forward after a short confirmation beat (Settings → General).
+    let autoClose: Bool
     let onCopy: () -> Void
     let onCopyAndClose: () -> Void
     let onRegenerate: () -> Void
@@ -547,18 +551,24 @@ private struct ReplyResultView: View {
 
     private var primaryLabel: String {
         if mode == .summarize { return "Copy summary" }
-        return didPrimaryCopy ? "Copied ✓ — paste in Mail" : "Copy & open Mail"
+        return didPrimaryCopy ? "Copied ✓" : "Copy message"
     }
 
-    /// Copy immediately and show the confirmation for a beat before the
-    /// panel closes and Mail comes forward — a silently vanishing window
-    /// reads as a misfire.
+    /// Copy immediately and show the confirmation for a beat — a silently
+    /// vanishing window reads as a misfire. With auto-close on, the panel
+    /// then dismisses and Mail comes forward; otherwise it stays open.
     private func primaryReplyAction() {
         onCopy()
         withAnimation(.easeOut(duration: 0.15)) { didPrimaryCopy = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            onCopyAndClose()
-            didPrimaryCopy = false
+        if autoClose {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                onCopyAndClose()
+                didPrimaryCopy = false
+            }
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                didPrimaryCopy = false
+            }
         }
     }
 

@@ -30,11 +30,11 @@ struct GeneralSettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Startup
+    // MARK: - Behavior
 
     private var startupSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Startup")
+            Text("Behavior")
                 .font(.system(size: 13, weight: .semibold))
 
             Toggle(isOn: Binding(
@@ -42,6 +42,13 @@ struct GeneralSettingsView: View {
                 set: { settingsStore.setLaunchAtLogin($0) }
             )) {
                 Text("Launch at login")
+                    .font(.system(size: 12))
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            Toggle(isOn: $settingsStore.autoCloseAfterCopy) {
+                Text("Close panel after Copy message")
                     .font(.system(size: 12))
             }
             .toggleStyle(.switch)
@@ -60,7 +67,7 @@ struct GeneralSettingsView: View {
                 step(1, "Select or open an email in Apple Mail")
                 step(2, "Press **\(shortcutDisplay)** to open the AI composer")
                 step(3, "Describe what you want to say")
-                step(4, "Click **Copy & open Mail**, then paste the reply")
+                step(4, "Click **Copy message**, then paste the reply into Mail")
             }
         }
     }
