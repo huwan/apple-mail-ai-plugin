@@ -6,7 +6,7 @@ struct WritingStyleView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Add your own instructions to guide how emails are written. For example: \"Keep it casual\" or \"Always sign off with Cheers\".")
+            Text("Add your own instructions to guide how emails are written. For example: \"Keep it casual\" or \"Use British English\".")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
