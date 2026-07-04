@@ -1,7 +1,7 @@
 APP_NAME = Apple Mail AI Plugin
 BUNDLE_NAME = AIMailComposer
 BUNDLE_ID = com.aiMailComposer
-VERSION = 0.7.1
+VERSION = 0.7.2
 BUILD_DIR = build
 APP_BUNDLE = $(BUILD_DIR)/$(APP_NAME).app
 EXECUTABLE = $(APP_BUNDLE)/Contents/MacOS/$(BUNDLE_NAME)
