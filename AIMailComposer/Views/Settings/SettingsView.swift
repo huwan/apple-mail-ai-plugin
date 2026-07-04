@@ -12,7 +12,7 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             Picker("", selection: $selectedTab) {
-                ForEach(Tab.allCases, id: \.self) { tab in
+                ForEach(Tab.allCases, id: \.self) { (tab: Tab) in
                     Text(tab.rawValue).tag(tab)
                 }
             }

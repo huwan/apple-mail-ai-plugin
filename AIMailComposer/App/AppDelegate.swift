@@ -33,7 +33,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         observeUpdateState()
         scheduleRecurringUpdateChecks()
         Task { await settingsStore.fetchAllModels() }
-        openSettings()
+        // First run only: no model configured yet means the user has never
+        // set up an API key, so show Settings. Otherwise start silently in
+        // the menu bar.
+        if settingsStore.selectedModelID.isEmpty {
+            openSettings()
+        }
         Task { updateChecker.checkForUpdates() }
     }
 

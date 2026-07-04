@@ -2,10 +2,12 @@ import SwiftUI
 
 struct APIKeySettingsView: View {
     @EnvironmentObject var settingsStore: SettingsStore
-    @State private var anthropicKey: String = ""
-    @State private var openaiKey: String = ""
-    @State private var geminiKey: String = ""
-    @State private var openrouterKey: String = ""
+    /// Provider being edited. Persisted so the page reopens on the one the
+    /// user actually uses. Keys for other providers stay saved regardless.
+    @AppStorage("settingsProviderTab") private var selectedProviderRaw: String = AIProvider.anthropic.rawValue
+    @State private var currentKey: String = ""
+    @State private var currentBaseURL: String = ""
+    @State private var configuredProviders: Set<AIProvider> = []
     @State private var statusMessage: String = ""
     @State private var isError: Bool = false
     @State private var modelSearchText: String = ""
@@ -20,28 +22,44 @@ struct APIKeySettingsView: View {
 
     // MARK: - API Keys
 
+    private var selectedProvider: AIProvider {
+        AIProvider(rawValue: selectedProviderRaw) ?? .anthropic
+    }
+
     private var apiKeyFields: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            keyField("Anthropic", placeholder: "sk-ant-api03-…", text: $anthropicKey)
-                .onAppear { anthropicKey = settingsStore.getAPIKey(for: .anthropic) ?? "" }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("Provider")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Picker("", selection: $selectedProviderRaw) {
+                    ForEach(AIProvider.allCases) { provider in
+                        Text(provider.displayName + (configuredProviders.contains(provider) ? "  ✓" : ""))
+                            .tag(provider.rawValue)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 220, alignment: .leading)
+                Spacer()
+            }
 
-            keyField("OpenAI", placeholder: "sk-…", text: $openaiKey)
-                .onAppear { openaiKey = settingsStore.getAPIKey(for: .openai) ?? "" }
-
-            keyField("Google Gemini", placeholder: "AIza…", text: $geminiKey)
-                .onAppear { geminiKey = settingsStore.getAPIKey(for: .gemini) ?? "" }
+            KeyField(label: "API Key", placeholder: keyPlaceholder, text: $currentKey)
 
             VStack(alignment: .leading, spacing: 3) {
-                keyField("OpenRouter", placeholder: "sk-or-v1-…", text: $openrouterKey)
-                    .onAppear { openrouterKey = settingsStore.getAPIKey(for: .openrouter) ?? "" }
-                Text("One key for every model on openrouter.ai")
+                Text("Base URL")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextField(selectedProvider.defaultBaseURL, text: $currentBaseURL)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+                Text("Leave empty for the default. Useful for proxies and gateways.")
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
                     .padding(.leading, 2)
             }
 
             HStack(spacing: 8) {
-                Button("Save Keys") { saveKeys() }
+                Button("Save") { saveCurrent() }
                     .controlSize(.small)
                 if !statusMessage.isEmpty {
                     Text(statusMessage)
@@ -54,17 +72,35 @@ struct APIKeySettingsView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .onAppear {
+            loadProviderFields()
+            refreshConfiguredProviders()
+        }
+        .onChange(of: selectedProviderRaw) { _ in
+            statusMessage = ""
+            loadProviderFields()
+        }
     }
 
-    private func keyField(_ label: String, placeholder: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-            TextField(placeholder, text: text)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12, design: .monospaced))
+    private var keyPlaceholder: String {
+        switch selectedProvider {
+        case .anthropic: return "sk-ant-api03-…"
+        case .openai: return "sk-…"
+        case .gemini: return "AIza…"
+        case .openrouter: return "sk-or-v1-…"
+        case .vercel: return "vck_…"
         }
+    }
+
+    private func loadProviderFields() {
+        currentKey = settingsStore.getAPIKey(for: selectedProvider) ?? ""
+        currentBaseURL = settingsStore.baseURLOverride(for: selectedProvider)
+    }
+
+    private func refreshConfiguredProviders() {
+        configuredProviders = Set(AIProvider.allCases.filter {
+            !(settingsStore.getAPIKey(for: $0) ?? "").isEmpty
+        })
     }
 
     // MARK: - Model Selection
@@ -74,6 +110,7 @@ struct APIKeySettingsView: View {
             || settingsStore.isFetchingOpenAI
             || settingsStore.isFetchingGemini
             || settingsStore.isFetchingOpenRouter
+            || settingsStore.isFetchingVercel
     }
 
     @ViewBuilder
@@ -147,20 +184,64 @@ struct APIKeySettingsView: View {
             .padding(.horizontal)
             .padding(.bottom, 8)
 
-            List(selection: $settingsStore.selectedModelID) {
-                ForEach(filteredGroupedModels, id: \.0) { provider, models in
-                    Section(provider.displayName) {
-                        ForEach(models) { model in
-                            modelRow(model).tag(model.id)
+            ScrollViewReader { proxy in
+                VStack(alignment: .leading, spacing: 0) {
+                    if let selected = settingsStore.selectedModel {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .font(.system(size: 11))
+                            Text(selected.displayName)
+                                .font(.system(size: 11, weight: .medium))
+                                .lineLimit(1)
+                            Text("· \(selected.provider.displayName)")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            Spacer()
+                            Button("Show in list") { revealSelected(proxy) }
+                                .controlSize(.small)
                         }
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
+                    }
+
+                    List(selection: $settingsStore.selectedModelID) {
+                        ForEach(filteredGroupedModels, id: \.0) { provider, models in
+                            Section(provider.displayName) {
+                                ForEach(models) { model in
+                                    modelRow(model)
+                                        .tag(model.id)
+                                        .id(model.id)
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.bordered)
+                }
+                .onAppear {
+                    // Give the list a beat to lay out before jumping to the
+                    // selected model, or scrollTo silently no-ops.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        proxy.scrollTo(settingsStore.selectedModelID, anchor: .center)
                     }
                 }
             }
-            .listStyle(.bordered)
 
             fetchErrorLines
                 .padding(.horizontal)
                 .padding(.bottom, 8)
+        }
+    }
+
+    /// Clear any active search (the selected model may be filtered out),
+    /// then scroll the list to the selected model.
+    private func revealSelected(_ proxy: ScrollViewProxy) {
+        modelSearchText = ""
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            withAnimation {
+                proxy.scrollTo(settingsStore.selectedModelID, anchor: .center)
+            }
         }
     }
 
@@ -209,43 +290,47 @@ struct APIKeySettingsView: View {
             if let err = settingsStore.openrouterFetchError {
                 Text("OpenRouter: \(err)").font(.caption2).foregroundStyle(.red)
             }
+            if let err = settingsStore.vercelFetchError {
+                Text("Vercel AI Gateway: \(err)").font(.caption2).foregroundStyle(.red)
+            }
         }
     }
 
     // MARK: - Save
 
-    private func saveKeys() {
-        let trimmedAnthropic = anthropicKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedOpenAI = openaiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedGemini = geminiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedOpenRouter = openrouterKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        anthropicKey = trimmedAnthropic
-        openaiKey = trimmedOpenAI
-        geminiKey = trimmedGemini
-        openrouterKey = trimmedOpenRouter
+    /// Save the key + base URL of the provider currently shown, then
+    /// re-fetch that provider's models so the new settings are verified
+    /// immediately. Other providers' saved keys are untouched.
+    private func saveCurrent() {
+        let provider = selectedProvider
+        let trimmedKey = currentKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        currentKey = trimmedKey
+
+        settingsStore.setBaseURLOverride(currentBaseURL, for: provider)
+        currentBaseURL = settingsStore.baseURLOverride(for: provider)
 
         do {
-            try applyKey(trimmedAnthropic, for: .anthropic) { settingsStore.anthropicModels = [] }
-            try applyKey(trimmedOpenAI, for: .openai) { settingsStore.openaiModels = [] }
-            try applyKey(trimmedGemini, for: .gemini) { settingsStore.geminiModels = [] }
-            try applyKey(trimmedOpenRouter, for: .openrouter) { settingsStore.openrouterModels = [] }
+            if trimmedKey.isEmpty {
+                settingsStore.deleteAPIKey(for: provider)
+                clearModels(for: provider)
+                refreshConfiguredProviders()
+                isError = false
+                statusMessage = "Key removed."
+                return
+            }
+            try settingsStore.setAPIKey(trimmedKey, for: provider)
+            refreshConfiguredProviders()
 
             isError = false
             statusMessage = "Saved. Fetching models…"
             Task {
-                await settingsStore.fetchAllModels()
-                let errors = [
-                    settingsStore.anthropicFetchError,
-                    settingsStore.openaiFetchError,
-                    settingsStore.geminiFetchError,
-                    settingsStore.openrouterFetchError,
-                ].compactMap { $0 }
-                if errors.isEmpty {
-                    statusMessage = "Saved. \(settingsStore.allModels.count) models loaded."
-                    isError = false
-                } else {
-                    statusMessage = errors.joined(separator: "; ")
+                await settingsStore.fetchModels(for: provider)
+                if let err = fetchError(for: provider) {
+                    statusMessage = err
                     isError = true
+                } else {
+                    statusMessage = "Saved. \(modelCount(for: provider)) models loaded."
+                    isError = false
                 }
             }
         } catch {
@@ -254,12 +339,70 @@ struct APIKeySettingsView: View {
         }
     }
 
-    private func applyKey(_ key: String, for provider: AIProvider, onDelete clearModels: () -> Void) throws {
-        if key.isEmpty {
-            settingsStore.deleteAPIKey(for: provider)
-            clearModels()
-        } else {
-            try settingsStore.setAPIKey(key, for: provider)
+    private func clearModels(for provider: AIProvider) {
+        switch provider {
+        case .anthropic: settingsStore.anthropicModels = []
+        case .openai: settingsStore.openaiModels = []
+        case .gemini: settingsStore.geminiModels = []
+        case .openrouter: settingsStore.openrouterModels = []
+        case .vercel: settingsStore.vercelModels = []
+        }
+    }
+
+    private func fetchError(for provider: AIProvider) -> String? {
+        switch provider {
+        case .anthropic: return settingsStore.anthropicFetchError
+        case .openai: return settingsStore.openaiFetchError
+        case .gemini: return settingsStore.geminiFetchError
+        case .openrouter: return settingsStore.openrouterFetchError
+        case .vercel: return settingsStore.vercelFetchError
+        }
+    }
+
+    private func modelCount(for provider: AIProvider) -> Int {
+        switch provider {
+        case .anthropic: return settingsStore.anthropicModels.count
+        case .openai: return settingsStore.openaiModels.count
+        case .gemini: return settingsStore.geminiModels.count
+        case .openrouter: return settingsStore.openrouterModels.count
+        case .vercel: return settingsStore.vercelModels.count
+        }
+    }
+}
+
+/// API key input, masked by default with an eye toggle to reveal.
+private struct KeyField: View {
+    let label: String
+    let placeholder: String
+    @Binding var text: String
+    @State private var isRevealed = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Group {
+                    if isRevealed {
+                        TextField(placeholder, text: $text)
+                    } else {
+                        SecureField(placeholder, text: $text)
+                    }
+                }
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12, design: .monospaced))
+
+                Button {
+                    isRevealed.toggle()
+                } label: {
+                    Image(systemName: isRevealed ? "eye.slash" : "eye")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(isRevealed ? "Hide key" : "Show key")
+            }
         }
     }
 }
