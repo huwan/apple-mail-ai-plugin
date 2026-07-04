@@ -60,7 +60,7 @@ struct GeneralSettingsView: View {
                 step(1, "Select or open an email in Apple Mail")
                 step(2, "Press **\(shortcutDisplay)** to open the AI composer")
                 step(3, "Describe what you want to say")
-                step(4, "Click **Copy message**, then paste the reply into Mail")
+                step(4, "Click **Copy & open Mail**, then paste the reply")
             }
         }
     }

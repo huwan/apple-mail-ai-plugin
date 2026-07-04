@@ -474,6 +474,7 @@ private struct ReplyResultView: View {
     let onEdit: () -> Void
 
     @State private var didCopy = false
+    @State private var didPrimaryCopy = false
 
     var body: some View {
         ScrollView {
@@ -528,12 +529,12 @@ private struct ReplyResultView: View {
                                 .disabled(isStreaming)
                             Spacer()
                             PrimaryActionButton(
-                                icon: "doc.on.doc",
-                                label: mode == .summarize ? "Copy summary" : "Copy message",
-                                action: mode == .summarize ? primaryCopyAction : onCopyAndClose
+                                icon: didPrimaryCopy ? "checkmark" : "doc.on.doc",
+                                label: primaryLabel,
+                                action: mode == .summarize ? primaryCopyAction : primaryReplyAction
                             )
                             .keyboardShortcut(.return, modifiers: .command)
-                            .disabled(isStreaming)
+                            .disabled(isStreaming || didPrimaryCopy)
                         }
                         .opacity(isStreaming ? 0.55 : 1.0)
                         .animation(.easeOut(duration: 0.15), value: isStreaming)
@@ -541,6 +542,23 @@ private struct ReplyResultView: View {
                 }
             }
             .padding(16)
+        }
+    }
+
+    private var primaryLabel: String {
+        if mode == .summarize { return "Copy summary" }
+        return didPrimaryCopy ? "Copied ✓ — paste in Mail" : "Copy & open Mail"
+    }
+
+    /// Copy immediately and show the confirmation for a beat before the
+    /// panel closes and Mail comes forward — a silently vanishing window
+    /// reads as a misfire.
+    private func primaryReplyAction() {
+        onCopy()
+        withAnimation(.easeOut(duration: 0.15)) { didPrimaryCopy = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+            onCopyAndClose()
+            didPrimaryCopy = false
         }
     }
 
