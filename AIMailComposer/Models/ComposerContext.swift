@@ -1,16 +1,17 @@
 import Foundation
 import CoreGraphics
 
-/// Snapshot of the currently open Mail compose window, plus the matching
-/// thread context (if this is a reply). The composer window is the single
-/// source of truth — never derived from which message is selected in the list.
+/// Snapshot of the current Mail context. Usually the open compose window plus
+/// the matching thread (if this is a reply). When no compose window exists,
+/// the context comes from the messages selected in the viewer instead.
 struct ComposerContext {
     let recipients: [String]
     let subject: String
     let currentDraft: String
     let thread: EmailThread?
     /// The compose window's screen frame (AppleScript/AX coordinates: origin
-    /// at the top-left of the primary display, y grows downward).
+    /// at the top-left of the primary display, y grows downward). In selection
+    /// mode this is the viewer window's frame.
     let composeWindowFrame: CGRect?
 
     var isNewEmail: Bool { thread == nil }

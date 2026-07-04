@@ -77,7 +77,7 @@ struct ComposerView: View {
                 userThoughts: viewModel.userThoughts,
                 isStreaming: viewModel.isStreaming,
                 onCopy: { viewModel.copyToClipboard() },
-                onInsert: { Task { await viewModel.insertIntoMail() } },
+                onCopyAndClose: { viewModel.copyAndClose() },
                 onRegenerate: { Task { await viewModel.regenerate() } },
                 onEdit: { viewModel.backToEditing() }
             )
@@ -469,7 +469,7 @@ private struct ReplyResultView: View {
     let userThoughts: String
     let isStreaming: Bool
     let onCopy: () -> Void
-    let onInsert: () -> Void
+    let onCopyAndClose: () -> Void
     let onRegenerate: () -> Void
     let onEdit: () -> Void
 
@@ -530,7 +530,7 @@ private struct ReplyResultView: View {
                             PrimaryActionButton(
                                 icon: "doc.on.doc",
                                 label: mode == .summarize ? "Copy summary" : "Copy message",
-                                action: mode == .summarize ? primaryCopyAction : onInsert
+                                action: mode == .summarize ? primaryCopyAction : onCopyAndClose
                             )
                             .keyboardShortcut(.return, modifiers: .command)
                             .disabled(isStreaming)
@@ -1024,6 +1024,7 @@ private struct ProviderGlyph: View {
         case .openai: return Color(red: 0.10, green: 0.60, blue: 0.46)
         case .gemini: return Color(red: 0.30, green: 0.52, blue: 0.95)
         case .openrouter: return Color(red: 0.45, green: 0.30, blue: 0.85)
+        case .vercel: return Color(red: 0.20, green: 0.20, blue: 0.22)
         case .none: return .secondary
         }
     }

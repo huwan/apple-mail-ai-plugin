@@ -3,7 +3,7 @@ import AppKit
 
 enum MailBridgeError: LocalizedError {
     case scriptFailed(String)
-    case noComposer
+    case noContext
     case mailNotRunning
     case parseError(String)
 
@@ -11,8 +11,8 @@ enum MailBridgeError: LocalizedError {
         switch self {
         case .scriptFailed(let msg):
             return "AppleScript error: \(msg)"
-        case .noComposer:
-            return "Open a compose window in Mail first, then try again."
+        case .noContext:
+            return "Select an email in Mail or open a compose window first, then try again."
         case .mailNotRunning:
             return "Mail is not running. Open Mail and try again."
         case .parseError(let msg):
@@ -50,8 +50,8 @@ final class MailBridge {
         }
     }
 
-    /// Pull context from the currently open Mail compose window.
-    /// Never reads from the message list — the compose window is the source of truth.
+    /// Pull context from the currently open Mail compose window, or — when no
+    /// compose window exists — from the messages selected in the viewer.
     static func fetchComposerContext() async throws -> ComposerContext {
         guard await isMailRunning() else {
             throw MailBridgeError.mailNotRunning
@@ -59,27 +59,15 @@ final class MailBridge {
 
         let raw = try await executeAppleScript(MailScripts.fetchComposerContext)
 
-        if raw.hasPrefix("ERROR:NO_COMPOSER") {
-            throw MailBridgeError.noComposer
+        if raw.hasPrefix("ERROR:NO_CONTEXT") || raw.hasPrefix("ERROR:NO_COMPOSER") {
+            throw MailBridgeError.noContext
         }
 
         return try MailThreadParser.parseComposerContext(raw)
     }
 
-    /// Write the reply directly into the current Mail compose window.
-    /// Falls back to the clipboard if the AppleScript insert fails.
     @MainActor
-    static func insertReply(_ text: String) async {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-
-        _ = try? await executeAppleScript(MailScripts.insertReply(text))
-        activateMail()
-    }
-
-    @MainActor
-    private static func activateMail() {
+    static func activateMail() {
         if let mailApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.mail").first {
             mailApp.activate()
         }

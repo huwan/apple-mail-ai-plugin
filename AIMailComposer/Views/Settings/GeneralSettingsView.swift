@@ -57,10 +57,10 @@ struct GeneralSettingsView: View {
                 .font(.system(size: 13, weight: .semibold))
 
             VStack(alignment: .leading, spacing: 10) {
-                step(1, "Open or reply to an email in Apple Mail")
+                step(1, "Select or open an email in Apple Mail")
                 step(2, "Press **\(shortcutDisplay)** to open the AI composer")
                 step(3, "Describe what you want to say")
-                step(4, "Your reply is generated and inserted into the draft")
+                step(4, "Click **Copy message**, then paste the reply into Mail")
             }
         }
     }

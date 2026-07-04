@@ -171,9 +171,14 @@ final class ComposerViewModel: ObservableObject {
         }
     }
 
-    func insertIntoMail() async {
+    /// Primary action: copy the result, bring Mail to the front so the user
+    /// can paste, and close the panel. Direct insertion into Mail is disabled
+    /// for now — mutating compose-window content via AppleScript is broken on
+    /// recent macOS (silently no-ops or clears the body).
+    func copyAndClose() {
         guard !generatedReply.isEmpty else { return }
-        await MailBridge.insertReply(generatedReply)
+        copyToClipboard()
+        MailBridge.activateMail()
         onDismiss()
     }
 

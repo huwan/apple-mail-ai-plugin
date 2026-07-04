@@ -9,10 +9,26 @@ enum MailThreadParser {
         }
 
         let composerBlock = parts[0]
+        let isSelection = composerBlock
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .hasPrefix("SELECTION")
         let parsed = parseComposerBlock(composerBlock)
 
         let rest = parts.count > 1 ? parts[1] : ""
         let messages = parseThreadMessages(rest)
+
+        if isSelection {
+            guard let newest = messages.last else {
+                throw MailBridgeError.parseError("Selection context without messages")
+            }
+            return ComposerContext(
+                recipients: [newest.sender],
+                subject: newest.subject,
+                currentDraft: "",
+                thread: EmailThread(subject: newest.subject, messages: messages),
+                composeWindowFrame: parsed.frame
+            )
+        }
 
         let thread: EmailThread?
         if messages.isEmpty {
