@@ -49,10 +49,12 @@ struct APIKeySettingsView: View {
                 Text("Base URL")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
-                TextField(selectedProvider.defaultBaseURL, text: $currentBaseURL)
+                TextField(baseURLPlaceholder, text: $currentBaseURL)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
-                Text("Leave empty for the default. Useful for proxies and gateways.")
+                Text(selectedProvider == .openaiCompatible
+                     ? "Any endpoint that speaks the OpenAI chat-completions protocol (DeepSeek, Groq, Ollama, …)."
+                     : "Leave empty for the default. Useful for proxies and gateways.")
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
                     .padding(.leading, 2)
@@ -89,7 +91,13 @@ struct APIKeySettingsView: View {
         case .gemini: return "AIza…"
         case .openrouter: return "sk-or-v1-…"
         case .vercel: return "vck_…"
+        case .openaiCompatible: return "API key for your endpoint"
         }
+    }
+
+    private var baseURLPlaceholder: String {
+        let defaultURL = selectedProvider.defaultBaseURL
+        return defaultURL.isEmpty ? "https://your-gateway.example.com/v1 (required)" : defaultURL
     }
 
     private func loadProviderFields() {
@@ -111,6 +119,7 @@ struct APIKeySettingsView: View {
             || settingsStore.isFetchingGemini
             || settingsStore.isFetchingOpenRouter
             || settingsStore.isFetchingVercel
+            || settingsStore.isFetchingCompatible
     }
 
     @ViewBuilder
@@ -293,6 +302,9 @@ struct APIKeySettingsView: View {
             if let err = settingsStore.vercelFetchError {
                 Text("Vercel AI Gateway: \(err)").font(.caption2).foregroundStyle(.red)
             }
+            if let err = settingsStore.compatibleFetchError {
+                Text("OpenAI Compatible: \(err)").font(.caption2).foregroundStyle(.red)
+            }
         }
     }
 
@@ -346,6 +358,7 @@ struct APIKeySettingsView: View {
         case .gemini: settingsStore.geminiModels = []
         case .openrouter: settingsStore.openrouterModels = []
         case .vercel: settingsStore.vercelModels = []
+        case .openaiCompatible: settingsStore.compatibleModels = []
         }
     }
 
@@ -356,6 +369,7 @@ struct APIKeySettingsView: View {
         case .gemini: return settingsStore.geminiFetchError
         case .openrouter: return settingsStore.openrouterFetchError
         case .vercel: return settingsStore.vercelFetchError
+        case .openaiCompatible: return settingsStore.compatibleFetchError
         }
     }
 
@@ -366,6 +380,7 @@ struct APIKeySettingsView: View {
         case .gemini: return settingsStore.geminiModels.count
         case .openrouter: return settingsStore.openrouterModels.count
         case .vercel: return settingsStore.vercelModels.count
+        case .openaiCompatible: return settingsStore.compatibleModels.count
         }
     }
 }

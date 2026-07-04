@@ -58,9 +58,9 @@ extension AIModel {
             if id.range(of: #"-\d{3,}"#, options: .regularExpression) != nil { score -= 20 }
             if id.contains("preview") || id.contains("exp") { score -= 5 }
 
-        case .openrouter, .vercel:
-            // OpenRouter and Vercel AI Gateway pass slugs like
-            // `anthropic/claude-sonnet-4`. Favour flagship families,
+        case .openrouter, .vercel, .openaiCompatible:
+            // OpenRouter, Vercel AI Gateway, and generic gateways pass slugs
+            // like `anthropic/claude-sonnet-4`. Favour flagship families,
             // penalise free/preview/deprecated tags.
             if id.contains("opus") || id.contains("gpt-5") || id.contains("o4") || id.contains("2.5-pro") { score += 40 }
             else if id.contains("sonnet") || id.contains("gpt-4.1") || id.contains("gpt-4o") || id.contains("2.5-flash") || id.contains("o3") { score += 30 }

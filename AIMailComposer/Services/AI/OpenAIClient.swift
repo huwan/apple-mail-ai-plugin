@@ -1,11 +1,15 @@
 import Foundation
 
+/// Speaks the OpenAI chat-completions protocol. Also serves any
+/// OpenAI-compatible endpoint via `.openaiCompatible` — same wire format,
+/// different base URL.
 final class OpenAIClient: AIClient {
-    let provider = AIProvider.openai
+    let provider: AIProvider
     private let apiKey: String
     private let model: String
 
-    init(apiKey: String, model: String) {
+    init(provider: AIProvider = .openai, apiKey: String, model: String) {
+        self.provider = provider
         self.apiKey = apiKey
         self.model = model
     }
@@ -14,8 +18,9 @@ final class OpenAIClient: AIClient {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    guard let url = URL(string: "\(AIProvider.openai.effectiveBaseURL)/chat/completions") else {
-                        throw AIClientError.requestFailed("Invalid OpenAI base URL. Check Settings → API Keys.")
+                    let base = provider.effectiveBaseURL
+                    guard !base.isEmpty, let url = URL(string: "\(base)/chat/completions") else {
+                        throw AIClientError.requestFailed("Missing or invalid \(provider.displayName) base URL. Check Settings → API Keys.")
                     }
                     var request = URLRequest(url: url)
                     request.httpMethod = "POST"

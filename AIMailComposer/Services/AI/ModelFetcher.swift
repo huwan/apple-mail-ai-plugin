@@ -169,6 +169,41 @@ enum ModelFetcher {
         }
     }
 
+    /// Generic OpenAI-compatible `/models` endpoint. Unlike the OpenAI
+    /// fetcher, no `gpt-` prefix filter — gateways serve arbitrary model ids.
+    static func fetchOpenAICompatibleModels(apiKey: String) async throws -> [AIModel] {
+        let base = AIProvider.openaiCompatible.effectiveBaseURL
+        guard !base.isEmpty, let url = URL(string: "\(base)/models") else {
+            throw AIClientError.requestFailed("Set a Base URL for the OpenAI Compatible provider in Settings")
+        }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw AIClientError.requestFailed("Failed to fetch models: \(body)")
+        }
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let modelsArray = json["data"] as? [[String: Any]]
+        else {
+            throw AIClientError.invalidResponse("Could not parse models response")
+        }
+
+        let skipKeywords = ["embed", "whisper", "tts", "dall-e", "moderation", "rerank"]
+
+        return modelsArray.compactMap { obj -> AIModel? in
+            guard let id = obj["id"] as? String else { return nil }
+            let lower = id.lowercased()
+            if skipKeywords.contains(where: { lower.contains($0) }) { return nil }
+            let displayName = (obj["name"] as? String) ?? id
+            let created = obj["created"] as? TimeInterval
+            return AIModel(id: id, displayName: displayName, provider: .openaiCompatible, createdAt: created)
+        }
+    }
+
     /// Fetch models ranked by popularity signals from OpenRouter's public API
     /// (no auth needed). Returns an ordered list so the most popular/capable
     /// models come first. This is a dynamic signal — when new flagship models

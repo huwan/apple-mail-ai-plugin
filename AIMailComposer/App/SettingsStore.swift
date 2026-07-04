@@ -41,20 +41,23 @@ final class SettingsStore: ObservableObject {
     @Published var geminiModels: [AIModel] = []
     @Published var openrouterModels: [AIModel] = []
     @Published var vercelModels: [AIModel] = []
+    @Published var compatibleModels: [AIModel] = []
     @Published var isFetchingAnthropic = false
     @Published var isFetchingOpenAI = false
     @Published var isFetchingGemini = false
     @Published var isFetchingOpenRouter = false
     @Published var isFetchingVercel = false
+    @Published var isFetchingCompatible = false
     @Published var anthropicFetchError: String?
     @Published var openaiFetchError: String?
     @Published var geminiFetchError: String?
     @Published var openrouterFetchError: String?
     @Published var vercelFetchError: String?
+    @Published var compatibleFetchError: String?
     @Published var trendingModels: [TrendingModel] = []
 
     var allModels: [AIModel] {
-        anthropicModels + openaiModels + geminiModels + openrouterModels + vercelModels
+        anthropicModels + openaiModels + geminiModels + openrouterModels + vercelModels + compatibleModels
     }
 
     /// Models grouped by provider. Within each group, sorted by release date
@@ -69,6 +72,7 @@ final class SettingsStore: ObservableObject {
             case .gemini: models = geminiModels
             case .openrouter: models = openrouterModels
             case .vercel: models = vercelModels
+            case .openaiCompatible: models = compatibleModels
             }
             guard !models.isEmpty else { return nil }
             let sorted = models.sorted { lhs, rhs in
@@ -100,6 +104,7 @@ final class SettingsStore: ObservableObject {
                     case .gemini:     providerModels = geminiModels
                     case .openrouter: providerModels = openrouterModels
                     case .vercel: providerModels = vercelModels
+                    case .openaiCompatible: providerModels = compatibleModels
                     }
                     match = providerModels.first {
                         ModelFetcher.modelIDMatchesSlug($0.id, slug: entry.slug)
@@ -246,6 +251,17 @@ final class SettingsStore: ObservableObject {
                 vercelFetchError = error.localizedDescription
             }
             isFetchingVercel = false
+
+        case .openaiCompatible:
+            isFetchingCompatible = true
+            compatibleFetchError = nil
+            do {
+                compatibleModels = try await ModelFetcher.fetchOpenAICompatibleModels(apiKey: apiKey)
+                ensureDefaultSelection()
+            } catch {
+                compatibleFetchError = error.localizedDescription
+            }
+            isFetchingCompatible = false
         }
     }
 

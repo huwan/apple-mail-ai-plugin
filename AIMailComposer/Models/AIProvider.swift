@@ -6,6 +6,10 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
     case gemini
     case openrouter
     case vercel
+    /// Any endpoint that speaks the OpenAI chat-completions protocol
+    /// (DeepSeek, Groq, Ollama, vLLM, LiteLLM, …). The user supplies the
+    /// base URL — no code changes needed for new gateways.
+    case openaiCompatible
 
     var id: String { rawValue }
 
@@ -16,6 +20,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .gemini: return "Google Gemini"
         case .openrouter: return "OpenRouter"
         case .vercel: return "Vercel AI Gateway"
+        case .openaiCompatible: return "OpenAI Compatible"
         }
     }
 
@@ -27,11 +32,13 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .gemini: return "G"
         case .openrouter: return "R"
         case .vercel: return "V"
+        case .openaiCompatible: return "C"
         }
     }
 
     /// Default API base URL (including the version segment). Endpoint paths
     /// like `/messages` or `/chat/completions` are appended to this.
+    /// Empty for `.openaiCompatible` — the user must supply one in Settings.
     var defaultBaseURL: String {
         switch self {
         case .anthropic: return "https://api.anthropic.com/v1"
@@ -39,6 +46,7 @@ enum AIProvider: String, CaseIterable, Codable, Identifiable {
         case .gemini: return "https://generativelanguage.googleapis.com/v1beta"
         case .openrouter: return "https://openrouter.ai/api/v1"
         case .vercel: return "https://ai-gateway.vercel.sh/v1"
+        case .openaiCompatible: return ""
         }
     }
 

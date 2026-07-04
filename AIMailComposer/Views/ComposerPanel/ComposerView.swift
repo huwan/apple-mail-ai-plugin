@@ -1025,6 +1025,7 @@ private struct ProviderGlyph: View {
         case .gemini: return Color(red: 0.30, green: 0.52, blue: 0.95)
         case .openrouter: return Color(red: 0.45, green: 0.30, blue: 0.85)
         case .vercel: return Color(red: 0.20, green: 0.20, blue: 0.22)
+        case .openaiCompatible: return Color(red: 0.35, green: 0.55, blue: 0.60)
         case .none: return .secondary
         }
     }

@@ -28,6 +28,11 @@ enum AIClientFactory {
                 throw AIClientError.missingAPIKey(.vercel)
             }
             return VercelGatewayClient(apiKey: key, model: model.id)
+        case .openaiCompatible:
+            guard let key = keychainService.getKey(for: .openaiCompatible), !key.isEmpty else {
+                throw AIClientError.missingAPIKey(.openaiCompatible)
+            }
+            return OpenAIClient(provider: .openaiCompatible, apiKey: key, model: model.id)
         }
     }
 }

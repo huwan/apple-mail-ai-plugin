@@ -30,6 +30,7 @@ The **Apple Mail AI Plugin** lives in your menu bar and connects directly to App
 - **Works with Apple Mail** — reads your email thread, recipients, subject, and current draft
 - **No Reply needed** — just select an email in the list and hit the shortcut; the thread context comes along automatically
 - **Multiple AI providers** — Anthropic (Claude), OpenAI (GPT), Google Gemini, OpenRouter, and Vercel AI Gateway
+- **OpenAI Compatible endpoints** — bring any gateway that speaks the OpenAI protocol (DeepSeek, Groq, Ollama, vLLM, …) by entering its base URL, no code changes needed
 - **Custom base URLs** — point any provider at a proxy or gateway from Settings
 - **Thread summaries** — one click TL;DR of the selected email thread
 - **Streaming responses** — see the reply as it's being written
@@ -93,6 +94,10 @@ The Apple Mail AI Plugin calls AI providers directly — you'll need an API key 
 2. Create an API key and copy it (starts with `vck_`)
 
 > Like OpenRouter, one key covers models from many providers.
+
+### Any OpenAI-Compatible Endpoint
+
+Using DeepSeek, Groq, Ollama, vLLM, LiteLLM, or another gateway that speaks the OpenAI chat-completions protocol? Pick **OpenAI Compatible** in Settings, enter the endpoint's base URL (e.g. `https://api.deepseek.com/v1`), and paste its API key.
 
 ### Add Your Key to the App
 
