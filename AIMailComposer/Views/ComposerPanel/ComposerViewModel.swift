@@ -16,6 +16,7 @@ final class ComposerViewModel: ObservableObject {
     enum Mode: Equatable {
         case reply
         case summarize
+        case translate
     }
 
     @Published var state: State = .loadingContext
@@ -32,6 +33,12 @@ final class ComposerViewModel: ObservableObject {
         guard let thread = context.thread else { return false }
         return !thread.messages.isEmpty
     }
+
+    /// Translation needs the same thing a summary does: an actual thread.
+    var canTranslate: Bool { canSummarize }
+
+    /// The language "Translate thread" targets, resolved from Settings.
+    var translationLanguage: String { settingsStore.effectiveTranslationLanguage }
 
     private let settingsStore: SettingsStore
     private let onDismiss: () -> Void
@@ -139,12 +146,50 @@ final class ComposerViewModel: ObservableObject {
         await streamTask?.value
     }
 
+    func translate() async {
+        guard let context else {
+            state = .error("No compose window detected.")
+            return
+        }
+        guard canTranslate else {
+            state = .error("No email to translate yet.")
+            return
+        }
+
+        streamTask?.cancel()
+        generatedReply = ""
+        mode = .translate
+        state = .generating
+        isStreaming = true
+
+        let client: AIClient
+        do {
+            client = try settingsStore.makeAIClient()
+        } catch {
+            isStreaming = false
+            state = .error(error.localizedDescription)
+            return
+        }
+
+        let (systemPrompt, userMessage) = SystemPrompt.translate(
+            context: context,
+            targetLanguage: settingsStore.effectiveTranslationLanguage,
+            customInstructions: settingsStore.customWritingInstructions
+        )
+
+        streamTask = Task { [weak self] in
+            await self?.consumeStream(client.stream(systemPrompt: systemPrompt, userMessage: userMessage))
+        }
+        await streamTask?.value
+    }
+
     /// Re-runs whichever generation produced the current output. Lets the
     /// "Regenerate" chip in the result view stay mode-agnostic.
     func regenerate() async {
         switch mode {
         case .reply: await generate()
         case .summarize: await summarize()
+        case .translate: await translate()
         }
     }
 

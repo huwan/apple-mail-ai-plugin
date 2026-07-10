@@ -13,6 +13,33 @@ final class SettingsStore: ObservableObject {
     @AppStorage("autoCloseAfterCopy") var autoCloseAfterCopy: Bool = true
     @AppStorage("hotkeyKeyCode") var hotkeyKeyCode: Int = 0x04    // kVK_ANSI_H
     @AppStorage("hotkeyModifiers") var hotkeyModifiers: Int = 0x0800 // optionKey
+    /// Target language for "Translate thread". Empty = follow the system
+    /// language. Stored as an English language name so it can go straight
+    /// into the prompt.
+    @AppStorage("translationLanguage") var translationLanguage: String = ""
+
+    /// Languages offered in Settings. English names, used verbatim in the
+    /// translation prompt.
+    static let translationLanguageOptions: [String] = [
+        "Simplified Chinese",
+        "Traditional Chinese",
+        "English",
+        "Japanese",
+        "Korean",
+        "German",
+        "French",
+        "Spanish",
+        "Arabic",
+        "Russian",
+    ]
+
+    /// The language the translate action actually targets: the explicit
+    /// choice from Settings, or the system language when none is set.
+    var effectiveTranslationLanguage: String {
+        if !translationLanguage.isEmpty { return translationLanguage }
+        let code = Locale.preferredLanguages.first ?? "en"
+        return Locale(identifier: "en_US").localizedString(forIdentifier: code) ?? "English"
+    }
 
     static let hotkeyDidChange = Notification.Name("hotkeyDidChange")
 

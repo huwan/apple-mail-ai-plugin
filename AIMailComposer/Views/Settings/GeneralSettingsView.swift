@@ -53,6 +53,21 @@ struct GeneralSettingsView: View {
             }
             .toggleStyle(.switch)
             .controlSize(.small)
+
+            HStack(spacing: 8) {
+                Text("Translate email into")
+                    .font(.system(size: 12))
+                Picker("Translate email into", selection: $settingsStore.translationLanguage) {
+                    Text("System language").tag("")
+                    Divider()
+                    ForEach(SettingsStore.translationLanguageOptions, id: \.self) { language in
+                        Text(language).tag(language)
+                    }
+                }
+                .labelsHidden()
+                .controlSize(.small)
+                .fixedSize()
+            }
         }
     }
 

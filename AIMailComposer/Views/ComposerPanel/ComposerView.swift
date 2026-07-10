@@ -60,13 +60,17 @@ struct ComposerView: View {
             ReadyState(
                 context: viewModel.context,
                 canSummarize: viewModel.canSummarize,
+                canTranslate: viewModel.canTranslate,
+                translationLanguage: viewModel.translationLanguage,
                 isBusy: viewModel.isBusy,
-                onSummarize: { Task { await viewModel.summarize() } }
+                onSummarize: { Task { await viewModel.summarize() } },
+                onTranslate: { Task { await viewModel.translate() } }
             )
 
         case .generating:
             GeneratingState(
                 mode: viewModel.mode,
+                translationLanguage: viewModel.translationLanguage,
                 thoughts: viewModel.userThoughts
             )
 
@@ -74,6 +78,7 @@ struct ComposerView: View {
             ReplyResultView(
                 reply: $viewModel.generatedReply,
                 mode: viewModel.mode,
+                translationLanguage: viewModel.translationLanguage,
                 userThoughts: viewModel.userThoughts,
                 isStreaming: viewModel.isStreaming,
                 autoClose: viewModel.autoCloseAfterCopy,
@@ -200,8 +205,11 @@ private struct LoadingState: View {
 private struct ReadyState: View {
     let context: ComposerContext?
     let canSummarize: Bool
+    let canTranslate: Bool
+    let translationLanguage: String
     let isBusy: Bool
     let onSummarize: () -> Void
+    let onTranslate: () -> Void
 
     var body: some View {
         ScrollView {
@@ -212,6 +220,11 @@ private struct ReadyState: View {
                         .padding(.top, 16)
                     if canSummarize {
                         SummarizeThreadButton(action: onSummarize)
+                            .padding(.horizontal, 16)
+                            .disabled(isBusy)
+                    }
+                    if canTranslate {
+                        TranslateThreadButton(language: translationLanguage, action: onTranslate)
                             .padding(.horizontal, 16)
                             .disabled(isBusy)
                     }
@@ -237,6 +250,46 @@ private struct SummarizeThreadButton: View {
                     Text("Summarize thread")
                         .font(.system(size: 12, weight: .semibold))
                     Text("TL;DR of the conversation so far")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "sparkles")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.primary.opacity(hovering ? 0.08 : 0.04))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
+private struct TranslateThreadButton: View {
+    let language: String
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: "globe")
+                    .font(.system(size: 11, weight: .semibold))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Translate email")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text("Latest message into \(language)")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
@@ -372,6 +425,7 @@ private struct ThreadMessageRow: View {
 
 private struct GeneratingState: View {
     let mode: ComposerViewModel.Mode
+    let translationLanguage: String
     let thoughts: String
     @State private var pulse = false
 
@@ -386,13 +440,17 @@ private struct GeneratingState: View {
                 SummarizeIntent()
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
+            case .translate:
+                TranslateIntent(language: translationLanguage)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
             }
 
             HStack(spacing: 10) {
                 ShimmerDot(delay: 0.0)
                 ShimmerDot(delay: 0.15)
                 ShimmerDot(delay: 0.30)
-                Text(mode == .summarize ? "Summarizing thread…" : "Drafting reply…")
+                Text(statusLabel)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -402,6 +460,36 @@ private struct GeneratingState: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var statusLabel: String {
+        switch mode {
+        case .reply: return "Drafting reply…"
+        case .summarize: return "Summarizing thread…"
+        case .translate: return "Translating email…"
+        }
+    }
+}
+
+private struct TranslateIntent: View {
+    let language: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "globe")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Text("Translate this email into \(language)")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+        )
     }
 }
 
@@ -467,6 +555,7 @@ private struct UserBubble: View {
 private struct ReplyResultView: View {
     @Binding var reply: String
     let mode: ComposerViewModel.Mode
+    let translationLanguage: String
     let userThoughts: String
     let isStreaming: Bool
     /// When on, the primary copy dismisses the panel and brings Mail
@@ -488,6 +577,8 @@ private struct ReplyResultView: View {
                     UserBubble(text: userThoughts)
                 case .summarize:
                     SummarizeIntent()
+                case .translate:
+                    TranslateIntent(language: translationLanguage)
                 }
 
                 HStack(alignment: .top, spacing: 8) {
@@ -525,7 +616,7 @@ private struct ReplyResultView: View {
                             .disabled(isStreaming)
                             ActionChip(
                                 icon: "arrow.uturn.backward",
-                                label: mode == .summarize ? "Back" : "Edit",
+                                label: mode == .reply ? "Edit" : "Back",
                                 action: onEdit
                             )
                                 .disabled(isStreaming)
@@ -535,7 +626,7 @@ private struct ReplyResultView: View {
                             PrimaryActionButton(
                                 icon: didPrimaryCopy ? "checkmark" : "doc.on.doc",
                                 label: primaryLabel,
-                                action: mode == .summarize ? primaryCopyAction : primaryReplyAction
+                                action: mode == .reply ? primaryReplyAction : primaryCopyAction
                             )
                             .keyboardShortcut(.return, modifiers: .command)
                             .disabled(isStreaming || didPrimaryCopy)
@@ -550,8 +641,11 @@ private struct ReplyResultView: View {
     }
 
     private var primaryLabel: String {
-        if mode == .summarize { return "Copy summary" }
-        return didPrimaryCopy ? "Copied ✓" : "Copy message"
+        switch mode {
+        case .summarize: return "Copy summary"
+        case .translate: return "Copy translation"
+        case .reply: return didPrimaryCopy ? "Copied ✓" : "Copy message"
+        }
     }
 
     /// Copy immediately and show the confirmation for a beat — a silently

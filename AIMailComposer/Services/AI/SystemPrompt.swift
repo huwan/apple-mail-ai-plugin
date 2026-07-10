@@ -136,4 +136,52 @@ enum SystemPrompt {
 
         return (finalSystem, userParts.joined(separator: "\n"))
     }
+
+    /// Builds prompts for translating a single email — the newest message in
+    /// the context (which is the selected one when a single message is
+    /// selected in Mail). Like the summary, the result stands on its own —
+    /// never inserted back into Mail. Mail's scripting interface can't tell
+    /// which message of a conversation is being read, so "newest" is the
+    /// closest stable proxy for "the one on screen".
+    static func translate(context: ComposerContext, targetLanguage: String, customInstructions: String = "") -> (system: String, user: String) {
+        let system = """
+        You are an email translator. Translate the email into \(targetLanguage) \
+        for someone who cannot read the original.
+
+        ## Rules
+        - Output ONLY the translated body of the email. No preamble, no explanations, \
+        no markdown headers, no From/Date lines.
+        - Translate the complete body. Do not summarize, shorten, or embellish.
+        - Preserve the meaning, tone, and register of the original.
+        - Keep the original paragraph and line structure, including greetings, \
+        sign-offs, and quoted sections.
+        - Keep names, email addresses, URLs, file names, code, and product names \
+        untranslated.
+        - Keep numbers, dates, and times exactly as written.
+        - If a passage is already in \(targetLanguage), copy it unchanged.
+        - Do not invent content. If part of the original is ambiguous, translate it \
+        literally.
+        """
+
+        var userParts: [String] = []
+
+        userParts.append("## Email to translate")
+        userParts.append("Subject: \(context.subject.isEmpty ? "(none)" : context.subject)")
+
+        if let message = context.thread?.messages.last {
+            userParts.append("From: \(message.sender)")
+            userParts.append("Date: \(message.formattedDate)")
+            userParts.append("")
+            userParts.append("## Body")
+            userParts.append(message.body)
+        }
+
+        var finalSystem = system
+        let trimmedInstructions = customInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedInstructions.isEmpty {
+            finalSystem += "\n\n## Additional instructions from the user\n" + trimmedInstructions
+        }
+
+        return (finalSystem, userParts.joined(separator: "\n"))
+    }
 }
