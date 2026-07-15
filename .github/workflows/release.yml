@@ -67,70 +67,37 @@ jobs:
           echo "tag=v$NEW_VERSION" >> "$GITHUB_OUTPUT"
           echo "skip=false" >> "$GITHUB_OUTPUT"
 
-      - name: Import Developer ID certificate
+      - name: Build and package ad-hoc DMG
         if: steps.version.outputs.skip != 'true'
-        env:
-          CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
-          CERTIFICATE_P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_P12_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
         run: |
-          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
-          CERT_PATH="$RUNNER_TEMP/cert.p12"
-
-          echo "$CERTIFICATE_P12_BASE64" | base64 --decode > "$CERT_PATH"
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          security import "$CERT_PATH" -P "$CERTIFICATE_P12_PASSWORD" \
-            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple:,codesign: \
-            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          security list-keychains -d user -s "$KEYCHAIN_PATH" \
-            $(security list-keychains -d user | sed 's/[\" ]//g')
-
-          rm "$CERT_PATH"
-
-          echo "Available signing identities:"
-          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
-
-      - name: Store notarization credentials
-        if: steps.version.outputs.skip != 'true'
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-        run: |
-          xcrun notarytool store-credentials "AC_PASSWORD" \
-            --apple-id "$APPLE_ID" \
-            --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD"
-
-      - name: Build, sign, notarize, and package DMG
-        if: steps.version.outputs.skip != 'true'
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          make release-dmg \
+          make sign \
             VERSION=${{ steps.version.outputs.version }} \
-            SIGNING_IDENTITY="Developer ID Application: Jan Philip Wahle ($APPLE_TEAM_ID)" \
-            APPLE_ID="$APPLE_ID" \
-            TEAM_ID="$APPLE_TEAM_ID" \
-            KEYCHAIN_PROFILE=AC_PASSWORD
+            SIGNING_IDENTITY=
 
-      - name: Verify Gatekeeper acceptance
+          rm -rf build/dmg-staging
+          mkdir -p build/dmg-staging
+          ditto "build/Apple Mail AI Plugin.app" \
+            "build/dmg-staging/Apple Mail AI Plugin.app"
+          ln -s /Applications build/dmg-staging/Applications
+
+          rm -f build/AIMailComposer.dmg
+          hdiutil create \
+            -volname "Apple Mail AI Plugin" \
+            -srcfolder build/dmg-staging \
+            -ov -format UDZO \
+            build/AIMailComposer.dmg
+          rm -rf build/dmg-staging
+
+      - name: Verify ad-hoc release artifacts
         if: steps.version.outputs.skip != 'true'
         run: |
-          spctl -a -vvv -t install "build/Apple Mail AI Plugin.app"
-          spctl -a -vvv -t open --context context:primary-signature build/AIMailComposer.dmg
-
-      - name: Clean up keychain
-        if: always() && steps.version.outputs.skip != 'true'
-        run: |
-          security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
+          codesign --verify --deep --strict --verbose=2 \
+            "build/Apple Mail AI Plugin.app"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
+            'build/Apple Mail AI Plugin.app/Contents/Info.plist')" = \
+            "${{ steps.version.outputs.version }}"
+          hdiutil verify build/AIMailComposer.dmg
+          shasum -a 256 build/AIMailComposer.dmg
 
       - name: Create GitHub Release
         if: steps.version.outputs.skip != 'true'
@@ -141,3 +108,8 @@ jobs:
           files: build/AIMailComposer.dmg
           make_latest: true
           generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            > [!IMPORTANT]
+            > This build is ad-hoc signed and is not notarized by Apple.
+            > On first launch, right-click the app and choose **Open**.
