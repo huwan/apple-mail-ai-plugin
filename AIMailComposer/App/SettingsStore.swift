@@ -1,10 +1,29 @@
 import Foundation
+import Network
 import ServiceManagement
 import SwiftUI
 
 @MainActor
 final class SettingsStore: ObservableObject {
     private let keychainService = KeychainService()
+    private let networkMonitor = NWPathMonitor()
+    private let networkMonitorQueue = DispatchQueue(label: "com.aiMailComposer.network-monitor")
+    private var networkWasAvailable: Bool?
+    private var retryPendingAfterNetworkRecovery = false
+
+    init() {
+        networkMonitor.pathUpdateHandler = { [weak self] path in
+            let isAvailable = path.status == .satisfied
+            Task { @MainActor [weak self] in
+                self?.handleNetworkAvailability(isAvailable)
+            }
+        }
+        networkMonitor.start(queue: networkMonitorQueue)
+    }
+
+    deinit {
+        networkMonitor.cancel()
+    }
 
     @AppStorage("selectedModelID") var selectedModelID: String = ""
     @AppStorage("customWritingInstructions") var customWritingInstructions: String = ""
@@ -85,6 +104,24 @@ final class SettingsStore: ObservableObject {
     @Published var vercelFetchError: String?
     @Published var compatibleFetchError: String?
     @Published var trendingModels: [TrendingModel] = []
+
+    var isFetchingModels: Bool {
+        isFetchingAnthropic
+            || isFetchingOpenAI
+            || isFetchingGemini
+            || isFetchingOpenRouter
+            || isFetchingVercel
+            || isFetchingCompatible
+    }
+
+    var hasModelFetchErrors: Bool {
+        anthropicFetchError != nil
+            || openaiFetchError != nil
+            || geminiFetchError != nil
+            || openrouterFetchError != nil
+            || vercelFetchError != nil
+            || compatibleFetchError != nil
+    }
 
     var allModels: [AIModel] {
         anthropicModels + openaiModels + geminiModels + openrouterModels + vercelModels + compatibleModels
@@ -225,6 +262,7 @@ final class SettingsStore: ObservableObject {
 
     func fetchModels(for provider: AIProvider) async {
         guard let apiKey = getAPIKey(for: provider), !apiKey.isEmpty else { return }
+        guard !isFetchingModels(for: provider) else { return }
 
         switch provider {
         case .anthropic:
@@ -293,6 +331,28 @@ final class SettingsStore: ObservableObject {
             }
             isFetchingCompatible = false
         }
+
+        retryAfterNetworkRecoveryIfReady()
+    }
+
+    /// Retry only providers whose previous model request failed. If there is
+    /// no recorded failure (for example, a configured provider returned an
+    /// empty list), this behaves like a full refresh.
+    func retryFailedModelFetches() async {
+        let failedProviders = AIProvider.allCases.filter {
+            fetchError(for: $0) != nil && !(getAPIKey(for: $0) ?? "").isEmpty
+        }
+
+        guard !failedProviders.isEmpty else {
+            await fetchAllModels()
+            return
+        }
+
+        await withTaskGroup(of: Void.self) { group in
+            for provider in failedProviders {
+                group.addTask { await self.fetchModels(for: provider) }
+            }
+        }
     }
 
     func fetchAllModels() async {
@@ -309,5 +369,53 @@ final class SettingsStore: ObservableObject {
         }
 
         trendingModels = await trending
+    }
+
+    private func handleNetworkAvailability(_ isAvailable: Bool) {
+        let wasAvailable = networkWasAvailable
+        networkWasAvailable = isAvailable
+
+        // A failed request should heal when an offline network comes back.
+        // Keep the recovery signal pending until any requests that were
+        // already in flight have finished and recorded their errors.
+        guard isAvailable else {
+            retryPendingAfterNetworkRecovery = false
+            return
+        }
+        guard wasAvailable == false else { return }
+        retryPendingAfterNetworkRecovery = true
+        retryAfterNetworkRecoveryIfReady()
+    }
+
+    private func retryAfterNetworkRecoveryIfReady() {
+        guard retryPendingAfterNetworkRecovery, !isFetchingModels else { return }
+        retryPendingAfterNetworkRecovery = false
+
+        // The manual Retry button remains available for transient failures
+        // where the system path never reported an offline transition.
+        guard hasModelFetchErrors else { return }
+        Task { await retryFailedModelFetches() }
+    }
+
+    func isFetchingModels(for provider: AIProvider) -> Bool {
+        switch provider {
+        case .anthropic: return isFetchingAnthropic
+        case .openai: return isFetchingOpenAI
+        case .gemini: return isFetchingGemini
+        case .openrouter: return isFetchingOpenRouter
+        case .vercel: return isFetchingVercel
+        case .openaiCompatible: return isFetchingCompatible
+        }
+    }
+
+    private func fetchError(for provider: AIProvider) -> String? {
+        switch provider {
+        case .anthropic: return anthropicFetchError
+        case .openai: return openaiFetchError
+        case .gemini: return geminiFetchError
+        case .openrouter: return openrouterFetchError
+        case .vercel: return vercelFetchError
+        case .openaiCompatible: return compatibleFetchError
+        }
     }
 }

@@ -18,6 +18,13 @@ struct APIKeySettingsView: View {
             Divider()
             modelSection
         }
+        .onChange(of: settingsStore.isFetchingModels(for: selectedProvider)) { wasFetching, isFetching in
+            guard wasFetching, !isFetching, isError, fetchError(for: selectedProvider) == nil else {
+                return
+            }
+            statusMessage = String(modelCount(for: selectedProvider)) + " models loaded."
+            isError = false
+        }
     }
 
     // MARK: - API Keys
@@ -63,6 +70,7 @@ struct APIKeySettingsView: View {
             HStack(spacing: 8) {
                 Button("Save") { saveCurrent() }
                     .controlSize(.small)
+                    .disabled(settingsStore.isFetchingModels(for: selectedProvider))
                 if !statusMessage.isEmpty {
                     Text(statusMessage)
                         .font(.system(size: 11))
@@ -78,7 +86,7 @@ struct APIKeySettingsView: View {
             loadProviderFields()
             refreshConfiguredProviders()
         }
-        .onChange(of: selectedProviderRaw) { _ in
+        .onChange(of: selectedProviderRaw) {
             statusMessage = ""
             loadProviderFields()
         }
@@ -114,17 +122,12 @@ struct APIKeySettingsView: View {
     // MARK: - Model Selection
 
     private var isFetching: Bool {
-        settingsStore.isFetchingAnthropic
-            || settingsStore.isFetchingOpenAI
-            || settingsStore.isFetchingGemini
-            || settingsStore.isFetchingOpenRouter
-            || settingsStore.isFetchingVercel
-            || settingsStore.isFetchingCompatible
+        settingsStore.isFetchingModels
     }
 
     @ViewBuilder
     private var modelSection: some View {
-        if settingsStore.allModels.isEmpty && !isFetching {
+        if settingsStore.allModels.isEmpty {
             modelEmptyState
         } else {
             modelList
@@ -144,6 +147,25 @@ struct APIKeySettingsView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             fetchErrorLines
+            if isFetching {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Fetching models…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else if !configuredProviders.isEmpty {
+                Button {
+                    retryModels()
+                } label: {
+                    Label(
+                        settingsStore.hasModelFetchErrors ? "Retry" : "Refresh",
+                        systemImage: "arrow.clockwise"
+                    )
+                }
+                .controlSize(.small)
+            }
         }
         .padding()
         .frame(maxWidth: .infinity)
@@ -164,6 +186,7 @@ struct APIKeySettingsView: View {
                     Task { await settingsStore.fetchAllModels() }
                 }
                 .controlSize(.small)
+                .disabled(isFetching)
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
@@ -284,6 +307,29 @@ struct APIKeySettingsView: View {
         }
     }
 
+    private func retryModels() {
+        let provider = selectedProvider
+        let shouldUpdateSaveStatus = fetchError(for: provider) != nil
+
+        if shouldUpdateSaveStatus {
+            statusMessage = "Retrying…"
+            isError = false
+        }
+
+        Task {
+            await settingsStore.retryFailedModelFetches()
+
+            guard shouldUpdateSaveStatus else { return }
+            if let err = fetchError(for: provider) {
+                statusMessage = err
+                isError = true
+            } else {
+                statusMessage = String(modelCount(for: provider)) + " models loaded."
+                isError = false
+            }
+        }
+    }
+
     @ViewBuilder
     private var fetchErrorLines: some View {
         VStack(spacing: 2) {
@@ -353,12 +399,24 @@ struct APIKeySettingsView: View {
 
     private func clearModels(for provider: AIProvider) {
         switch provider {
-        case .anthropic: settingsStore.anthropicModels = []
-        case .openai: settingsStore.openaiModels = []
-        case .gemini: settingsStore.geminiModels = []
-        case .openrouter: settingsStore.openrouterModels = []
-        case .vercel: settingsStore.vercelModels = []
-        case .openaiCompatible: settingsStore.compatibleModels = []
+        case .anthropic:
+            settingsStore.anthropicModels = []
+            settingsStore.anthropicFetchError = nil
+        case .openai:
+            settingsStore.openaiModels = []
+            settingsStore.openaiFetchError = nil
+        case .gemini:
+            settingsStore.geminiModels = []
+            settingsStore.geminiFetchError = nil
+        case .openrouter:
+            settingsStore.openrouterModels = []
+            settingsStore.openrouterFetchError = nil
+        case .vercel:
+            settingsStore.vercelModels = []
+            settingsStore.vercelFetchError = nil
+        case .openaiCompatible:
+            settingsStore.compatibleModels = []
+            settingsStore.compatibleFetchError = nil
         }
     }
 
